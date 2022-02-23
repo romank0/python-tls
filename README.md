@@ -44,7 +44,8 @@ mkdir -p ca/example.org
 
 #### Create Root Key
 
-**Attention:** this is the key used to sign the certificate requests, anyone holding this can sign certificates on your behalf. So keep it in a safe place!
+**Attention:** this is the key used to sign the certificate requests, anyone
+holding this can sign certificates on your behalf. So keep it in a safe place!
 
 ```bash
 openssl genrsa -des3 -out ca/rootCA.key 4096

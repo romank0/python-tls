@@ -1,3 +1,4 @@
+from contextlib import contextmanager
 import os
 from socket import create_connection
 from ssl import SSLContext, PROTOCOL_TLS_CLIENT
@@ -18,12 +19,25 @@ context.load_verify_locations(CERT_FILE)
 
 print(f'Connect to {ip}:{port}')
 print(f'  hostname {hostname}')
-print(f'  cert {CERT_FILE}')
+if '--no-ssl' in sys.argv:
+    print(f'  without SSL')
+else:
+    print(f'  with SSL cert {CERT_FILE}')
+
+
+@contextmanager
+def wrap_socket(clientsocket):
+    if '--no-ssl' in sys.argv:
+        yield clientsocket
+    else:
+        with context.wrap_socket(clientsocket, server_hostname=hostname) as tls:
+            print(f'Using {tls.version()}\n')
+            yield tls
+
 
 with create_connection((ip, port)) as client:
-    with context.wrap_socket(client, server_hostname=hostname) as tls:
-        print(f'Using {tls.version()}\n')
-        tls.sendall(b'Hello, world')
+    with wrap_socket(client) as sock:
+        sock.sendall(b'Hello, world')
 
-        data = tls.recv(1024)
+        data = sock.recv(1024)
         print(f'Server says: {data}')

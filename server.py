@@ -1,3 +1,4 @@
+from contextlib import contextmanager
 import os
 from socket import socket, AF_INET, SOCK_STREAM
 from ssl import SSLContext, PROTOCOL_TLS_SERVER
@@ -21,8 +22,12 @@ context.load_cert_chain(CERT_FILE, KEY_FILE)
 
 print(f'Listening on {ip}:{port}')
 print(f'  hostname {hostname}')
-print(f'  cert {CERT_FILE}')
-print(f'  key {KEY_FILE}')
+if '--no-ssl' in sys.argv:
+    print('  no SSL')
+else:
+    print(f'  with SSL')
+    print(f'  cert {CERT_FILE}')
+    print(f'  key {KEY_FILE}')
 
 
 def handle(connection, address):
@@ -34,13 +39,22 @@ def handle(connection, address):
     connection.sendall(b"You're welcome")
 
 
+@contextmanager
+def wrap_socket(serversocket):
+    if '--no-ssl' in sys.argv:
+        yield serversocket
+    else:
+        with context.wrap_socket(serversocket, server_side=True) as tls:
+            yield tls
+
+
 with socket(AF_INET, SOCK_STREAM) as server:
     server.bind((ip, port))
     server.listen(5)
-    with context.wrap_socket(server, server_side=True) as tls:
+    with wrap_socket(server) as sock:
         while True:
             try:
-                connection, address = tls.accept()
+                connection, address = sock.accept()
                 Thread(target=handle, args=(connection, address)).run()
             except KeyboardInterrupt:
                 break
