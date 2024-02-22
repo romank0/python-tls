@@ -54,7 +54,7 @@ openssl genrsa -des3 -out ca/rootCA.key 4096
 If you want a non password protected key just remove the `-des3` option
 
 
-## Create and self sign the Root Certificate
+### Create and self sign the Root Certificate
 
 ```bash
 openssl req -x509 -new -nodes -key ca/rootCA.key -sha256 -days 1024 -out ca/rootCA.crt
@@ -63,26 +63,26 @@ openssl req -x509 -new -nodes -key ca/rootCA.key -sha256 -days 1024 -out ca/root
 Here we used our root key to create the root certificate that needs to be distributed in all the computers that have to trust us.
 
 
-# Create a certificate (Done for each server)
+### Create a certificate (Done for each server)
 
 This procedure needs to be followed for each server/appliance that needs a trusted certificate from our CA
 
-## Create the certificate key
+### Create the certificate key
 
 ```
 openssl genrsa -out ca/example.org/example.org.key 2048
 ```
 
-## Create the signing  (csr)
+### Create the signing request  (csr)
 
 The certificate signing request is where you specify the details for the certificate you want to generate.
 This request will be processed by the owner of the Root key (you in this case since you create it earlier) to generate the certificate.
 
 **Important:** Please mind that while creating the signign request is important to specify the `Common Name` providing the IP address or domain name for the service, otherwise the certificate cannot be verified.
 
-I will describe here two ways to gener
+I will describe here two ways to generate the signing request.
 
-### Method A (Interactive)
+#### Method A (Interactive)
 
 If you generate the csr in this way, openssl will ask you questions about the certificate to generate like the organization details and the `Common Name` (CN) that is the web address you are creating the certificate for, e.g `example.org`.
 
@@ -90,7 +90,7 @@ If you generate the csr in this way, openssl will ask you questions about the ce
 openssl req -new -key ca/example.org/example.org.key -out ca/example.org/example.org.csr
 ```
 
-### Method B (One Liner)
+#### Method B (One Liner)
 
 This method generates the same output as Method A but it's suitable for use in your automation :) .
 
@@ -110,24 +110,44 @@ openssl req -new -sha256 \
     -out ca/example.org/example.org.csr
 ```
 
-
-## Verify the csr's content
+### Verify the csr's content
 
 ```
 openssl req -in ca/example.org/example.org.csr -noout -text
 ```
 
-## Generate the certificate using the `example.org` csr and key along with the CA Root key
+### Generate the certificate using the `example.org` csr and key along with the CA Root key
 
 ```
 openssl x509 -req -in ca/example.org/example.org.csr -CA ca/rootCA.crt -CAkey ca/rootCA.key -CAcreateserial -out ca/example.org/example.org.crt -days 500 -sha256
 ```
 
-## Verify the certificate's content
+### Verify the certificate's content
 
 ```
 openssl x509 -in ca/example.org/example.org.crt -text -noout
 ```
+
+## Client authentication
+
+### Generate client certificate
+
+Create key and certificate signing request for the client the same way as for
+server
+
+```
+mkdir ca/client1
+openssl genrsa -out ca/client1/client1.key 2048
+openssl req -new -sha256 -key ca/client1/client1.key -subj "/C=US/ST=CA/O=MyClient1, Inc./CN=exclient1" -out ca/client1/client1.csr
+```
+
+Then generate certificate for client1 using CA root key and certificate:
+```
+openssl x509 -req -in ca/client1/client1.csr -CA ca/rootCA.crt -CAkey ca/rootCA.key -CAcreateserial -out ca/client1/client1.crt -days 500 -sha256
+```
+
+This should be done for every client.
+
 ## Running the TLS connection example
 
 ### Run the server example
@@ -135,7 +155,7 @@ openssl x509 -in ca/example.org/example.org.crt -text -noout
 Open the terminal and enter the following commands:
 
 ```bash
-python3 server.py [--with-ca]
+python3 server.py [--no-ssl | --with-ca [--client-auth]]
 ```
 
 ### Run the client example
@@ -143,5 +163,8 @@ python3 server.py [--with-ca]
 Open the terminal and enter the following commands:
 
 ```bash
-python3 client.py [--with-ca]
+python3 client.py [--no-ssl | --with-ca [--client-auth client-name]]
 ```
+
+Here `client-name` should be a name of the folder inside `./ca/` that contains
+a certificate. E.g. for the example above it should be `client1`.

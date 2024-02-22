@@ -1,7 +1,7 @@
 from contextlib import contextmanager
 import os
 from socket import socket, AF_INET, SOCK_STREAM
-from ssl import SSLContext, PROTOCOL_TLS_SERVER
+from ssl import SSLContext, PROTOCOL_TLS_SERVER, CERT_REQUIRED
 import sys
 from threading import Thread
 
@@ -9,16 +9,9 @@ from threading import Thread
 hostname = 'example.org'
 ip = '127.0.0.1'
 port = 8443
-context = SSLContext(PROTOCOL_TLS_SERVER)
 
-if '--with-ca' in sys.argv:
-    CERT_FILE=f'ca/{hostname}/{hostname}.crt'
-    KEY_FILE=f'ca/{hostname}/{hostname}.key'
-else:
-    CERT_FILE='cert.pem'
-    KEY_FILE='key.pem'
-
-context.load_cert_chain(CERT_FILE, KEY_FILE)
+CLIENTS_CERTS='ca/server-verify-certs'
+CA_CERT='ca/rootCA.crt'
 
 print(f'Listening on {ip}:{port}')
 print(f'  hostname {hostname}')
@@ -26,8 +19,23 @@ if '--no-ssl' in sys.argv:
     print('  no SSL')
 else:
     print(f'  with SSL')
-    print(f'  cert {CERT_FILE}')
-    print(f'  key {KEY_FILE}')
+    context = SSLContext(PROTOCOL_TLS_SERVER)
+
+    if '--with-ca' in sys.argv:
+        CERT_FILE=f'ca/{hostname}/{hostname}.crt'
+        KEY_FILE=f'ca/{hostname}/{hostname}.key'
+    else:
+        CERT_FILE='cert.pem'
+        KEY_FILE='key.pem'
+
+    context.load_cert_chain(CERT_FILE, KEY_FILE)
+
+    print(f'  root cert {CA_CERT}')
+    print(f'  server cert {CERT_FILE}')
+    print(f'  server key {KEY_FILE}')
+    if '--client-auth' in sys.argv:
+        context.verify_mode = CERT_REQUIRED
+        context.load_verify_locations(cafile=CA_CERT)
 
 
 def handle(connection, address):
@@ -55,6 +63,8 @@ with socket(AF_INET, SOCK_STREAM) as server:
         while True:
             try:
                 connection, address = sock.accept()
+                if '--no-ssl' not in sys.argv:
+                    print("SSL established. Peer: {}".format(connection.getpeercert()))
                 Thread(target=handle, args=(connection, address)).run()
             except KeyboardInterrupt:
                 break
